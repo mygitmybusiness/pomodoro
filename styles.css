@@ -1,0 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+
+*{
+  margin: 0;
+  padding: 0;
+  list-style:none;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+}
+
+body{
+  background-color: #1b262c;
+  text-align:center;
+  font-family: 'Space Mono', monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.timer{
+  position: relative;
+}
+
+.time {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%)
+}
+
+.time{
+  font-size: 40px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+}
+
+.time .col {
+    display: flex;
+    flex-direction: column;
+}
+
+.time button {
+    border: none;
+    background: none;
+    width: 64px;
+    height: 64px; 
+}
+
+.time button:focus {
+    outline: none;
+}
+
+.time button span {
+    font-size: 0;
+    position: absolute;
+}
+
+svg{
+  display: inline-block;
+  vertical-align: middle;
+}
+circle{
+  stroke-width: 5px;
+  fill: transparent;
+  stroke-linecap: round;
+}
+
+#circle1{
+  stroke: rgba(0,0,0, .4);
+}
+
+#circle2{
+  stroke:#bbe1fa;
+  transition: 1s linear;
+}
+
+button{
+  vertical-align: middle;
+  width: 80px;
+  padding: 10px;
+  margin: 0;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: 'Space Mono', monospace;
+}
+
+button:focus{
+  outline:none;
+}
+
+button:active{
+  box-shadow: inset 0px 0px 1px 2px #1b262c;
+}
+
+#button{
+  background-color: #0f4c75;
+}
+
+#reset{
+  background-color: #3282b8;
+}
+
