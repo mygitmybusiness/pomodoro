@@ -26,7 +26,7 @@ async function readJsonSafe(filePath) {
   try {
     const raw = await fs.readFile(filePath, 'utf-8')
     return JSON.parse(raw)
-  } catch (e) {
+  } catch {
     return null
   }
 }
@@ -43,11 +43,8 @@ async function writeJsonAtomic(filePath, data) {
 export async function loadSettings() {
   const filePath = getSettingsPath()
   const existing = await readJsonSafe(filePath)
-
-  // Merge defaults with saved values (saved overrides defaults)
   const merged = { ...DEFAULT_SETTINGS, ...(existing ?? {}) }
 
-  // If file missing/corrupted, rewrite a clean one
   if (!existing) {
     await writeJsonAtomic(filePath, merged)
   }
@@ -58,13 +55,12 @@ export async function loadSettings() {
 export async function saveSettings(partial) {
   const filePath = getSettingsPath()
   const current = await loadSettings()
-  const next = { ...current, ...partial }
+  const next = { ...current, ...(partial ?? {}) }
 
   await writeJsonAtomic(filePath, next)
   return next
 }
 
 export async function setSetting(key, value) {
-  const next = await saveSettings({ [key]: value })
-  return next
+  return await saveSettings({ [key]: value })
 }

@@ -1,19 +1,26 @@
-import { useState } from 'react'
-import { SettingsModal } from './components/SettingsModal'
+// src/App.tsx (hash route: main vs tray)
 import { SimpleTimer } from './components/SimpleTimer'
 
-export default function App() {
-  const [open, setOpen] = useState(false)
-
+function TrayView() {
   return (
-    <div style={{ padding: 24, display: 'grid', gap: 12, placeItems: 'center', minHeight: '100vh' }}>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button onClick={() => setOpen(true)}>Settings</button>
-      </div>
-
+    <div style={{ padding: 16 }}>
+      <h3 style={{ margin: 0, marginBottom: 12 }}>Pomodoro</h3>
       <SimpleTimer />
-
-      <SettingsModal open={open} onClose={() => setOpen(false)} />
     </div>
   )
+}
+
+function MainView() {
+  return (
+    <div style={{ padding: 24 }}>
+      <h1 style={{ marginTop: 0 }}>Pomodoro Activities</h1>
+      <SimpleTimer />
+    </div>
+  )
+}
+
+export default function App() {
+  const hash = window.location.hash // "#/tray"
+  const isTray = hash.startsWith('#/tray')
+  return isTray ? <TrayView /> : <MainView />
 }

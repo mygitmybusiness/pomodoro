@@ -1,9 +1,8 @@
+// src/components/SimpleTimer.tsx
 import { useEffect, useRef, useState } from 'react'
 import { SETTINGS_CHANGED_EVENT } from '../lib/settingsEvents'
 
-type AppSettings = {
-  focusMinutes: number
-}
+type AppSettings = { focusMinutes: number }
 
 const DEFAULT_FOCUS_MINUTES = 25
 
@@ -16,89 +15,74 @@ function formatMMSS(totalSeconds: number) {
 
 export function SimpleTimer() {
   const [focusMinutes, setFocusMinutes] = useState(DEFAULT_FOCUS_MINUTES)
-
   const [isRunning, setIsRunning] = useState(false)
   const [remainingMs, setRemainingMs] = useState(DEFAULT_FOCUS_MINUTES * 60_000)
 
-  const lastSentRef = useRef<number | null>(null)
-
-  // Update window title + tray (1Hz while running, and immediately on pause/reset)
-  useEffect(() => {
-    const send = () => {
-      const remainingSec = Math.ceil(remainingMs / 1000)
-      if (lastSentRef.current === remainingSec) return
-      lastSentRef.current = remainingSec
-
-      const status = isRunning ? '▶' : '⏸'
-
-      const text = `${formatMMSS(remainingSec)} ${status} • Pomodoro`
-      document.title = text
-      
-      window.timer?.tick?.(remainingSec, isRunning)
-    }
-
-    // Always send at least once when state changes
-    send()
-
-    // While running, keep updating once per second
-    if (!isRunning) return
-
-    const id = window.setInterval(send, 1000)
-    return () => window.clearInterval(id)
-  }, [isRunning, remainingMs])
-  
-
+  // Timer internals
   const endAtRef = useRef<number | null>(null)
-  const rafRef = useRef<number | null>(null)
+  const timerIntervalRef = useRef<number | null>(null)
+
+  // Refs for tray updates (avoid stale closures)
+  const remainingMsRef = useRef<number>(remainingMs)
+  const isRunningRef = useRef<boolean>(isRunning)
+  const lastSentSecRef = useRef<number | null>(null)
 
   const durationMs = focusMinutes * 60_000
 
-  const stopLoop = () => {
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
-    rafRef.current = null
+  // Keep refs in sync
+  useEffect(() => {
+    remainingMsRef.current = remainingMs
+  }, [remainingMs])
+
+  useEffect(() => {
+    isRunningRef.current = isRunning
+  }, [isRunning])
+
+  const stopTicking = () => {
+    if (timerIntervalRef.current != null) window.clearInterval(timerIntervalRef.current)
+    timerIntervalRef.current = null
   }
 
-  const startLoop = () => {
-    const tick = () => {
-      if (endAtRef.current == null) return
-      const now = performance.now()
-      const left = endAtRef.current - now
-
-      if (left <= 0) {
-        setRemainingMs(0)
-        stopLoop()
-        endAtRef.current = null
-        setIsRunning(false)
-        return
-      }
-
-      setRemainingMs(left)
-      rafRef.current = requestAnimationFrame(tick)
-    }
-    rafRef.current = requestAnimationFrame(tick)
+  const computeRemainingMs = () => {
+    if (endAtRef.current == null) return remainingMsRef.current
+    return Math.max(0, endAtRef.current - Date.now())
   }
 
   const start = () => {
-    if (isRunning) return
-    endAtRef.current = performance.now() + remainingMs
+    if (isRunningRef.current) return
+
+    const now = Date.now()
+    endAtRef.current = now + computeRemainingMs()
     setIsRunning(true)
-    startLoop()
+
+    stopTicking()
+    timerIntervalRef.current = window.setInterval(() => {
+      const left = computeRemainingMs()
+      setRemainingMs(left)
+
+      if (left <= 0) {
+        endAtRef.current = null
+        stopTicking()
+        setIsRunning(false)
+      }
+    }, 200)
   }
 
   const pause = () => {
-    if (!isRunning) return
-    setIsRunning(false)
-    stopLoop()
-    const now = performance.now()
-    const left = (endAtRef.current ?? now) - now
-    setRemainingMs(Math.max(0, left))
+    if (!isRunningRef.current) return
+    const left = computeRemainingMs()
+
+    stopTicking()
     endAtRef.current = null
+
+    setRemainingMs(left)
+    setIsRunning(false)
   }
 
   const reset = () => {
-    setIsRunning(false)
-    stopLoop()
+    stopTicking()
     endAtRef.current = null
+    setIsRunning(false)
     setRemainingMs(durationMs)
   }
 
@@ -108,34 +92,33 @@ export function SimpleTimer() {
     ;(async () => {
       try {
         const s = await window.settings?.getAll?.()
-        if (!cancelled && s?.focusMinutes) {
-          const mins = Math.max(1, Number(s.focusMinutes))
+        const mins = Math.max(1, Number(s?.focusMinutes ?? DEFAULT_FOCUS_MINUTES))
+        if (!cancelled) {
           setFocusMinutes(mins)
           setRemainingMs(mins * 60_000)
         }
       } catch {
-        // ignore, keep defaults
+        // ignore
       }
     })()
+
     return () => {
       cancelled = true
     }
   }, [])
 
-  // Listen for settings changes and refresh timer immediately
+  // Refresh timer when settings change (stop + reset to new duration)
   useEffect(() => {
     const handler = (e: Event) => {
       const ce = e as CustomEvent<AppSettings>
       const mins = Math.max(1, Number(ce.detail?.focusMinutes ?? DEFAULT_FOCUS_MINUTES))
 
-      // Refresh to new settings:
-      // - set new duration
-      // - reset timer to full duration
-      // - stop running
-      setFocusMinutes(mins)
-      setIsRunning(false)
-      stopLoop()
+      stopTicking()
       endAtRef.current = null
+      lastSentSecRef.current = null
+
+      setIsRunning(false)
+      setFocusMinutes(mins)
       setRemainingMs(mins * 60_000)
     }
 
@@ -144,8 +127,27 @@ export function SimpleTimer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // ✅ Tray + window title updates (robust, no stale state, no spam)
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const ms = remainingMsRef.current
+      const running = isRunningRef.current
+      const remainingSec = Math.ceil(ms / 1000)
+
+      if (lastSentSecRef.current === remainingSec) return
+      lastSentSecRef.current = remainingSec
+
+      document.title = `${formatMMSS(remainingSec)} • Pomodoro`
+      window.timer?.tick?.(remainingSec, running)
+    }, 250)
+
+    return () => window.clearInterval(id)
+  }, [])
+
   // Cleanup
-  useEffect(() => stopLoop, [])
+  useEffect(() => {
+    return () => stopTicking()
+  }, [])
 
   const remainingSec = Math.ceil(remainingMs / 1000)
 

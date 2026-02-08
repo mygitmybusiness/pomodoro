@@ -7,8 +7,13 @@ contextBridge.exposeInMainWorld('settings', {
   set: (key, value) => ipcRenderer.invoke('settings:set', key, value),
 })
 
-// ✅ add timer bridge
 contextBridge.exposeInMainWorld('timer', {
   tick: (remainingSec, isRunning) =>
     ipcRenderer.send('timer:tick', { remainingSec, isRunning }),
+})
+
+contextBridge.exposeInMainWorld('tray', {
+  open: () => ipcRenderer.send('tray:open'),
+  toggle: () => ipcRenderer.send('tray:toggle'),
+  close: () => ipcRenderer.send('tray:close'),
 })
